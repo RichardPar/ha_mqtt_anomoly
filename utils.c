@@ -32,7 +32,7 @@ int parse_json(const char *json_str, EventData *event_data) {
     // Parse the JSON string
     cJSON *json = cJSON_Parse(json_str);
     if (json == NULL) {
-        fprintf(stderr, "Error parsing JSON\n");
+        //fprintf(stderr, "Error parsing JSON\n");
         return 0;
     }
 
@@ -87,7 +87,7 @@ int check_event_type(const char *json_str) {
     // Parse the JSON string
     cJSON *json = cJSON_Parse(json_str);
     if (json == NULL) {
-        fprintf(stderr, "Error parsing JSON\n");
+        //fprintf(stderr, "Error parsing JSON\n");
         return 0;
     }
 
@@ -176,9 +176,10 @@ int update_event_state_internal(EventData *event_data, ll_t *list_head) {
 	    convert_iso8601_to_tm(event_data->last_updated,&current_tm);
              if (calculateDifference(current_event->pvt->last_state,state) > 100)
                {
-                  printf("PING!!! LARGE DELTA (%d) (%d)\r\n",current_event->pvt->last_state,state);
+                  current_event->pvt->counter[get_hour(&current_tm)]++;
+                  printf("PING!!! LARGE DELTA  %s -> (%d) (%d)\r\n",current_event->pvt->entity_id,current_event->pvt->last_state,state);
                }
-
+             current_event->pvt->last_state = state;
 
 
 
