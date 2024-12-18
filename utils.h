@@ -1,4 +1,5 @@
 #include <time.h>
+#include "ll.h"
 
 typedef struct {
     char entity_id[256];
@@ -15,10 +16,17 @@ typedef struct {
   struct tm last_timestamp; 
   float  watts_integral[24];   // one her hour
   int    counter[24]; // one per hour
-  struct EventCatagory *next;
 } EventCatagory;
+
+
+typedef struct {
+    ll_t node;  // Linked list node
+    EventCatagory *pvt;   // Your custom data
+} event_struct_t;
 
 
 void convert_iso8601_to_tm(const char *iso8601, struct tm *result);
 int check_event_type(const char *json_str);
 int parse_json(const char *json_str, EventData *event_data);
+int add_unique_event(char *entity_id);
+int update_event_state(EventData *event_data);

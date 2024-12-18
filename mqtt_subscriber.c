@@ -21,9 +21,9 @@ void delivered(void *context, MQTTClient_deliveryToken dt) {
 
 int msgarrvd(void *context, char *topicName, int topicLen, MQTTClient_message *message) {
     if (check_event_type((char*)message->payload)) {
-        printf("Message arrived\n");
-        printf("     topic: %s\n", topicName);
-        printf("   message: %.*s\n", message->payloadlen, (char*)message->payload);
+//        printf("Message arrived\n");
+//        printf("     topic: %s\n", topicName);
+//        printf("   message: %.*s\n", message->payloadlen, (char*)message->payload);
         EventData event_data;
         if (parse_json(message->payload, &event_data)) {
             printf("Entity ID: %s\n", event_data.entity_id);
@@ -31,6 +31,19 @@ int msgarrvd(void *context, char *topicName, int topicLen, MQTTClient_message *m
             printf("Device Class: %s\n", event_data.device_class);
             printf("State: %s\n", event_data.state);
             printf("Last Updated: %s\n", event_data.last_updated);
+            if (add_unique_event(event_data.entity_id))
+             {
+                printf(">>>>>>> ADDED <<<<<<<<<<<\r\n");
+             }
+            if (update_event_state(&event_data));
+             {
+                printf(">>>>>>> UPDATED <<<<<<<<<<<\r\n");
+             }
+
+
+
+
+
         } else {
             printf("Failed to parse JSON\n");
         }
