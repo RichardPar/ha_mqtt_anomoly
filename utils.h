@@ -30,3 +30,4 @@ int check_event_type(const char *json_str);
 int parse_json(const char *json_str, EventData *event_data);
 int add_unique_event(char *entity_id);
 int update_event_state(EventData *event_data);
+void write_event_to_json(EventCatagory *event, struct tm intime);

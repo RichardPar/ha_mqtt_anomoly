@@ -37,7 +37,12 @@ int msgarrvd(void *context, char *topicName, int topicLen, MQTTClient_message *m
              }
             if (update_event_state(&event_data));
              {
-                
+                printf("Entity ID: %s\n", event_data.entity_id);
+                printf("State Class: %s\n", event_data.state_class);
+                printf("Device Class: %s\n", event_data.device_class);
+                printf("State: %s\n", event_data.state);
+                printf("Last Updated: %s\n", event_data.last_updated);
+    
              }
 
 
