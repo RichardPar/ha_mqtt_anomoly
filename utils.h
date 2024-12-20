@@ -21,6 +21,7 @@ typedef struct {
 
 typedef struct {
     ll_t node;  // Linked list node
+    int  init;
     EventCatagory *pvt;   // Your custom data
 } event_struct_t;
 

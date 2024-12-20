@@ -7,7 +7,7 @@
 
 #include "utils.h"
 
-#define CLIENTID    "ExampleClientSub"
+#define CLIENTID    "Anomolies"
 #define TOPIC       "#"
 #define QOS         1
 #define TIMEOUT     10000L

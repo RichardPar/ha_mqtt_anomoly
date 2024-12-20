@@ -186,17 +186,20 @@ int add_unique_event_internal(char *entity_id, ll_t *list_head) {
     memset(new_event,0,sizeof(event_struct_t));
 
     new_event->pvt = malloc(sizeof(EventCatagory));
+    new_event->init=-1;
+
     strcpy(new_event->pvt->entity_id, entity_id);
     // Initialize other fields as needed
     new_event->pvt->delta_trigger = 100;  // Example initialization
 
     int i;
     for (int i = 0; i < 24; i++) {
-        new_event->pvt->watts_integral[i]=0;
-        new_event->pvt->counter[i]=0;
+      new_event->pvt->watts_integral[i]=0;
+      new_event->pvt->counter[i]=0;
     }
-
     new_event->pvt->last_state = 0;
+    
+
 
     list_add(&new_event->node, list_head);
     return 1;
@@ -225,6 +228,22 @@ int update_event_state_internal(EventData *event_data, ll_t *list_head) {
     list_for_each_entry(current_event, list_head, node) {
         if (strcmp(current_event->pvt->entity_id, event_data->entity_id) == 0) {
             // Entity ID matches, update the last_state
+       
+          struct tm et;
+          char filename[300];
+         
+          if (current_event->init < 0)
+            {
+              convert_iso8601_to_tm(event_data->last_updated,&et);
+              sprintf(filename,"%s_%d.json", event_data->entity_id,get_day_of_week(et));
+
+              if (read_event_from_json(filename,current_event->pvt) < 0)
+              {
+              }
+              current_event->init=0;
+            }
+
+
             state = atoi(event_data->state);
             if (current_event->pvt->last_state == 0)   // Last state didnt have a reading... just set to current
                          current_event->pvt->last_state = state;
@@ -315,11 +334,14 @@ void write_event_to_file(EventCatagory *event) {
 }
 
 
-void read_event_from_json(const char *filename, EventCatagory *event) {
+int read_event_from_json(const char *filename, EventCatagory *event) {
+
+
+    printf(">>>>>>>> Opening file %s\r\n",filename);
     FILE *file = fopen(filename, "r");
     if (file == NULL) {
         perror("Error opening file");
-        return;
+        return -1;
     }
     
     fseek(file, 0, SEEK_END);
@@ -334,7 +356,7 @@ void read_event_from_json(const char *filename, EventCatagory *event) {
     if (json == NULL) {
         perror("Error parsing JSON");
         free(data);
-        return;
+        return -1;
     }
     
     cJSON *entity_id = cJSON_GetObjectItemCaseSensitive(json, "entity_id");
@@ -343,17 +365,20 @@ void read_event_from_json(const char *filename, EventCatagory *event) {
     cJSON *last_timestamp = cJSON_GetObjectItemCaseSensitive(json, "last_timestamp");
     cJSON *watts_integral = cJSON_GetObjectItemCaseSensitive(json, "watts_integral");
     cJSON *counter = cJSON_GetObjectItemCaseSensitive(json, "counter");
-    
+
     strcpy(event->entity_id, entity_id->valuestring);
     event->delta_trigger = delta_trigger->valueint;
     event->last_state = last_state->valueint;
+
+
     strptime(last_timestamp->valuestring, "%a %b %d %H:%M:%S %Y", &event->last_timestamp);
     
     for (int i = 0; i < 24; i++) {
         event->watts_integral[i] = cJSON_GetArrayItem(watts_integral, i)->valuedouble;
         event->counter[i] = cJSON_GetArrayItem(counter, i)->valueint;
     }
-    
+
     cJSON_Delete(json);
     free(data);
+  return 0;
 }
