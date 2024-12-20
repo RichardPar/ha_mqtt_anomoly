@@ -234,7 +234,10 @@ int update_event_state_internal(EventData *event_data, ll_t *list_head) {
                {
                   current_event->pvt->counter[get_hour(&current_tm)]++;
                   print_event_category( current_event->pvt);
+                  
                   printf("PING!!! LARGE DELTA  %s -> (%d) (%d)\r\n",current_event->pvt->entity_id,current_event->pvt->last_state,state);
+                  current_event->pvt->last_timestamp = current_tm; 
+                  write_event_to_file(current_event->pvt);
                }
              current_event->pvt->last_state = state;
 
@@ -251,4 +254,106 @@ int update_event_state_internal(EventData *event_data, ll_t *list_head) {
 
 int update_event_state(EventData *event_data) {
    return  update_event_state_internal(event_data,&event_list);
+}
+
+// Function to get the day of the week as a number (0=Mon, 1=Tue, ..., 6=Sun)
+int get_day_of_week(struct tm *tm) {
+    int day = tm->tm_mday;
+    int month = tm->tm_mon + 1; // tm_mon is 0-11, we need 1-12
+    int year = tm->tm_year + 1900; // tm_year is years since 1900
+
+    if (month < 3) {
+        month += 12;
+        year -= 1;
+    }
+
+    int K = year % 100;
+    int J = year / 100;
+
+    int f = day + 13 * (month + 1) / 5 + K + K / 4 + J / 4 + 5 * J;
+    int day_of_week = (f + 5) % 7; // Adjust to make 0=Mon, 1=Tue, ..., 6=Sun
+
+    return day_of_week;
+}
+
+
+void write_event_to_file(EventCatagory *event) {
+    char filename[300];
+
+    sprintf(filename,"%s_%d.json", event->entity_id, get_day_of_week(&event->last_timestamp)); 
+    
+    cJSON *json = cJSON_CreateObject();
+    cJSON_AddStringToObject(json, "entity_id", event->entity_id);
+    cJSON_AddNumberToObject(json, "delta_trigger", event->delta_trigger);
+    cJSON_AddNumberToObject(json, "last_state", event->last_state);
+    
+    char timestamp[100];
+    strftime(timestamp, sizeof(timestamp), "%a %b %d %H:%M:%S %Y", &event->last_timestamp);
+    cJSON_AddStringToObject(json, "last_timestamp", timestamp);
+    
+    cJSON *watts_integral = cJSON_CreateFloatArray(event->watts_integral, 24);
+    cJSON_AddItemToObject(json, "watts_integral", watts_integral);
+    
+    cJSON *counter = cJSON_CreateIntArray(event->counter, 24);
+    cJSON_AddItemToObject(json, "counter", counter);
+    
+    char *json_string = cJSON_Print(json);
+    
+    FILE *file = fopen(filename, "w");
+    if (file == NULL) {
+        perror("Error opening file");
+        cJSON_Delete(json);
+        free(json_string);
+        return;
+    }
+    
+    fprintf(file, "%s", json_string);
+    fclose(file);
+    
+    cJSON_Delete(json);
+    free(json_string);
+}
+
+
+void read_event_from_json(const char *filename, EventCatagory *event) {
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        perror("Error opening file");
+        return;
+    }
+    
+    fseek(file, 0, SEEK_END);
+    long length = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    
+    char *data = malloc(length + 1);
+    fread(data, 1, length, file);
+    fclose(file);
+    
+    cJSON *json = cJSON_Parse(data);
+    if (json == NULL) {
+        perror("Error parsing JSON");
+        free(data);
+        return;
+    }
+    
+    cJSON *entity_id = cJSON_GetObjectItemCaseSensitive(json, "entity_id");
+    cJSON *delta_trigger = cJSON_GetObjectItemCaseSensitive(json, "delta_trigger");
+    cJSON *last_state = cJSON_GetObjectItemCaseSensitive(json, "last_state");
+    cJSON *last_timestamp = cJSON_GetObjectItemCaseSensitive(json, "last_timestamp");
+    cJSON *watts_integral = cJSON_GetObjectItemCaseSensitive(json, "watts_integral");
+    cJSON *counter = cJSON_GetObjectItemCaseSensitive(json, "counter");
+    
+    strcpy(event->entity_id, entity_id->valuestring);
+    event->delta_trigger = delta_trigger->valueint;
+    event->last_state = last_state->valueint;
+    strptime(last_timestamp->valuestring, "%a %b %d %H:%M:%S %Y", &event->last_timestamp);
+    
+    for (int i = 0; i < 24; i++) {
+        event->watts_integral[i] = cJSON_GetArrayItem(watts_integral, i)->valuedouble;
+        event->counter[i] = cJSON_GetArrayItem(counter, i)->valueint;
+    }
+    
+    cJSON_Delete(json);
+    free(data);
 }
