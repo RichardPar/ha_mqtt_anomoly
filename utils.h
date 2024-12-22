@@ -32,3 +32,6 @@ int parse_json(const char *json_str, EventData *event_data);
 int add_unique_event(char *entity_id);
 int update_event_state(EventData *event_data);
 void write_event_to_json(EventCatagory *event, struct tm intime);
+int get_day_of_week(struct tm *tm);
+int read_event_from_json(const char *filename, EventCatagory *event);
+void write_event_to_file(EventCatagory *event);

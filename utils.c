@@ -1,10 +1,11 @@
+
+//#define _XOPEN_SOURCE
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #include <cJSON.h>
-#include <string.h>
-#include <stdlib.h>
 #include "utils.h"
-
 
 
 LIST_INIT(event_list); // create a linked list for the entity_id listing
@@ -151,6 +152,7 @@ int check_event_type(const char *json_str) {
                 cJSON *new_state = cJSON_GetObjectItemCaseSensitive(event_data, "new_state");
                 if (new_state != NULL) {
                     cJSON *attributes = cJSON_GetObjectItemCaseSensitive(new_state, "attributes");
+#if 0
                     if (attributes != NULL) {
                         cJSON *state_class = cJSON_GetObjectItemCaseSensitive(attributes, "state_class");
                         if (cJSON_IsString(state_class) && (state_class->valuestring != NULL)) {
@@ -161,6 +163,21 @@ int check_event_type(const char *json_str) {
                             }
                         }
                     }
+#endif
+                    if (attributes != NULL) {
+                        cJSON *state_class = cJSON_GetObjectItemCaseSensitive(attributes, "state_class");
+                        cJSON *device_class = cJSON_GetObjectItemCaseSensitive(attributes, "device_class");
+                        if (cJSON_IsString(state_class) && (state_class->valuestring != NULL) &&
+                            cJSON_IsString(device_class) && (device_class->valuestring != NULL)) {
+                            // Check if state_class is "measurement" and device_class is "power"
+                            if (strcmp(state_class->valuestring, "measurement") == 0 &&
+                                strcmp(device_class->valuestring, "power") == 0) {
+                                cJSON_Delete(json);
+                                return 1; // All conditions are met
+                            }
+                        }
+                    }
+
                 }
             }
         }
@@ -239,7 +256,7 @@ int update_event_state_internal(EventData *event_data, ll_t *list_head) {
           if (current_event->init < 0)
             {
               convert_iso8601_to_tm(event_data->last_updated,&et);
-              sprintf(filename,"%s_%d.json", event_data->entity_id,get_day_of_week(et));
+              sprintf(filename,"%s_%d.json", event_data->entity_id,get_day_of_week(&et));
 
               if (read_event_from_json(filename,current_event->pvt) < 0)
               {
@@ -247,12 +264,12 @@ int update_event_state_internal(EventData *event_data, ll_t *list_head) {
               current_event->init=1;
             } else
             {
-                if (get_day_of_week(&current_tm) != get_day_of_week(current_event->pvt->last_timestamp))
+                if (get_day_of_week(&current_tm) != get_day_of_week(&(current_event->pvt->last_timestamp)))
                {
                  // do omething! days differ
                 
-		sprintf(filename2,"%s_ref_%d.json", event_data->entity_id,get_day_of_week(current_event->pvt->last_timestamp));
-                sprintf(filename,"%s_%d.json", event_data->entity_id,get_day_of_week(current_event->pvt->last_timestamp));
+		sprintf(filename2,"%s_ref_%d.json", event_data->entity_id,get_day_of_week(&(current_event->pvt->last_timestamp)));
+                sprintf(filename,"%s_%d.json", event_data->entity_id,get_day_of_week(&(current_event->pvt->last_timestamp)));
                 rename(filename,filename2);
                 current_event->init=1;
                  int i;
@@ -354,8 +371,6 @@ void write_event_to_file(EventCatagory *event) {
 
 int read_event_from_json(const char *filename, EventCatagory *event) {
 
-
-    printf(">>>>>>>> Opening file %s\r\n",filename);
     FILE *file = fopen(filename, "r");
     if (file == NULL) {
         perror("Error opening file");
