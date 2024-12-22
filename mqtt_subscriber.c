@@ -14,6 +14,8 @@
 
 volatile MQTTClient_deliveryToken deliveredtoken;
 
+
+
 void delivered(void *context, MQTTClient_deliveryToken dt) {
     printf("Message with token value %d delivery confirmed\n", dt);
     deliveredtoken = dt;
@@ -58,7 +60,21 @@ int msgarrvd(void *context, char *topicName, int topicLen, MQTTClient_message *m
     return 1;
 }
 
+
 void connlost(void *context, char *cause) {
+    printf("\nConnection lost\n");
+    printf("     cause: %s\n", cause);
+    MQTTClient *client = (MQTTClient *)context;
+    int rc;
+
+    while ((rc = MQTTClient_connect(*client, NULL)) != MQTTCLIENT_SUCCESS) {
+        printf("Failed to reconnect, return code %d\n", rc);
+        sleep(1);
+    }
+    printf("Reconnected successfully\n");
+}
+
+void connlost_2(void *context, char *cause) {
     printf("\nConnection lost\n");
     printf("     cause: %s\n", cause);
 }

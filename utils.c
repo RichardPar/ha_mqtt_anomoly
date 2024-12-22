@@ -231,7 +231,11 @@ int update_event_state_internal(EventData *event_data, ll_t *list_head) {
        
           struct tm et;
           char filename[300];
-         
+          char filename2[300];
+
+          convert_iso8601_to_tm(event_data->last_updated,&current_tm);
+
+
           if (current_event->init < 0)
             {
               convert_iso8601_to_tm(event_data->last_updated,&et);
@@ -240,15 +244,29 @@ int update_event_state_internal(EventData *event_data, ll_t *list_head) {
               if (read_event_from_json(filename,current_event->pvt) < 0)
               {
               }
-              current_event->init=0;
+              current_event->init=1;
+            } else
+            {
+                if (get_day_of_week(&current_tm) != get_day_of_week(current_event->pvt->last_timestamp))
+               {
+                 // do omething! days differ
+                
+		sprintf(filename2,"%s_ref_%d.json", event_data->entity_id,get_day_of_week(current_event->pvt->last_timestamp));
+                sprintf(filename,"%s_%d.json", event_data->entity_id,get_day_of_week(current_event->pvt->last_timestamp));
+                rename(filename,filename2);
+                current_event->init=1;
+                 int i;
+                   for (int i = 0; i < 24; i++) {
+                  current_event->pvt->watts_integral[i]=0;
+                  current_event->pvt->counter[i]=0;
+                }
+               }
             }
-
 
             state = atoi(event_data->state);
             if (current_event->pvt->last_state == 0)   // Last state didnt have a reading... just set to current
                          current_event->pvt->last_state = state;
 
-	    convert_iso8601_to_tm(event_data->last_updated,&current_tm);
              if (calculateDifference(current_event->pvt->last_state,state) > 100)
                {
                   current_event->pvt->counter[get_hour(&current_tm)]++;
