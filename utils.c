@@ -202,6 +202,7 @@ int add_unique_event_internal(char *entity_id, ll_t *list_head) {
     event_struct_t *new_event = malloc(sizeof(event_struct_t));
     memset(new_event,0,sizeof(event_struct_t));
 
+    new_event->ref = malloc(sizeof(EventCatagory));
     new_event->pvt = malloc(sizeof(EventCatagory));
     new_event->init=-1;
 
@@ -261,6 +262,14 @@ int update_event_state_internal(EventData *event_data, ll_t *list_head) {
               if (read_event_from_json(filename,current_event->pvt) < 0)
               {
               }
+              
+              sprintf(filename,"%s_ref_%d.json", event_data->entity_id,get_day_of_week(&et));
+
+              if (read_event_from_json(filename,current_event->ref) < 0)
+              {
+              }
+
+
               current_event->init=1;
             } else
             {
@@ -271,6 +280,9 @@ int update_event_state_internal(EventData *event_data, ll_t *list_head) {
 		sprintf(filename2,"%s_ref_%d.json", event_data->entity_id,get_day_of_week(&(current_event->pvt->last_timestamp)));
                 sprintf(filename,"%s_%d.json", event_data->entity_id,get_day_of_week(&(current_event->pvt->last_timestamp)));
                 rename(filename,filename2);
+
+                sprintf(filename,"%s_ref_%d.json", event_data->entity_id,get_day_of_week(&current_tm));
+                read_event_from_json(filename,current_event->ref);
                 current_event->init=1;
                  int i;
                    for (int i = 0; i < 24; i++) {
