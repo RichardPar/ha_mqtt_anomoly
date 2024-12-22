@@ -22,7 +22,8 @@ typedef struct {
 typedef struct {
     ll_t node;  // Linked list node
     int  init;
-    EventCatagory *pvt;   // Your custom data
+    EventCatagory *pvt;   // Current
+    EventCatagory *ref;  // Last Weeks data
 } event_struct_t;
 
 
