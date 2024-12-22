@@ -214,7 +214,11 @@ int add_unique_event_internal(char *entity_id, ll_t *list_head) {
     for (int i = 0; i < 24; i++) {
       new_event->pvt->watts_integral[i]=0;
       new_event->pvt->counter[i]=0;
+      new_event->ref->counter[i]=0;
+      new_event->ref->watts_integral[i]=0;
     }
+
+
     new_event->pvt->last_state = 0;
     
 
@@ -236,6 +240,14 @@ int calculateDifference(int a, int b) {
     return difference;
 }
 
+int percentage_difference_baseline(int baseline, int value) {
+    if (baseline == 0) {
+        return 0; // Avoid division by zero
+    }
+    
+    int difference = value - baseline;
+    return (difference * 100) / baseline;
+}
 
 int update_event_state_internal(EventData *event_data, ll_t *list_head) {
     event_struct_t *current_event;
@@ -296,19 +308,21 @@ int update_event_state_internal(EventData *event_data, ll_t *list_head) {
             if (current_event->pvt->last_state == 0)   // Last state didnt have a reading... just set to current
                          current_event->pvt->last_state = state;
 
+
              if (calculateDifference(current_event->pvt->last_state,state) > 100)
                {
+
                   current_event->pvt->counter[get_hour(&current_tm)]++;
+                  int pct =  percentage_difference_baseline(current_event->ref->counter[get_hour(&current_tm)], 
+                                                  current_event->pvt->counter[get_hour(&current_tm)]);
+ 
                   print_event_category( current_event->pvt);
                   
-                  printf("PING!!! LARGE DELTA  %s -> (%d) (%d)\r\n",current_event->pvt->entity_id,current_event->pvt->last_state,state);
+                  printf("PING!!! LARGE DELTA  %s -> (%d) (%d) (pct %d)\r\n",current_event->pvt->entity_id,current_event->pvt->last_state,state,pct);
                   current_event->pvt->last_timestamp = current_tm; 
                   write_event_to_file(current_event->pvt);
                }
              current_event->pvt->last_state = state;
-
-
-
             return 1;  // Update successful
         }
     }

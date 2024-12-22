@@ -3,25 +3,36 @@
 #include <string.h>
 #include <unistd.h>
 #include <cJSON.h>
-#include "MQTTClient.h"
+#include <MQTTAsync.h>
 
 #include "utils.h"
 
 #define CLIENTID    "Anomolies"
-#define TOPIC       "#"
+#define TOPIC_EVENTS       "eventstream"
 #define QOS         1
-#define TIMEOUT     10000L
-
-volatile MQTTClient_deliveryToken deliveredtoken;
+#define TIMEOUT     1000L
 
 
+MQTTAsync client;
 
-void delivered(void *context, MQTTClient_deliveryToken dt) {
-    printf("Message with token value %d delivery confirmed\n", dt);
-    deliveredtoken = dt;
+
+
+void onDeliveryComplete(void* context, MQTTAsync_token token) {
+    printf("Message with token value %d delivery confirmed\n", token);
 }
 
-int msgarrvd(void *context, char *topicName, int topicLen, MQTTClient_message *message) {
+void onConnectFailure(void* context, MQTTAsync_failureData* response) {
+    printf("Connect failed, rc %d\n", response ? response->code : 0);
+}
+
+void onConnect(void* context, MQTTAsync_successData* response) {
+    printf("Connected successfully\n");
+    MQTTAsync client = (MQTTAsync)context;
+    MQTTAsync_subscribe(client, "eventstream", QOS, NULL);
+}
+
+
+int messageArrived(void* context, char* topicName, int topicLen, MQTTAsync_message* message) {
     if (check_event_type((char*)message->payload)) {
 //        printf("Message arrived\n");
 //        printf("     topic: %s\n", topicName);
@@ -37,47 +48,139 @@ int msgarrvd(void *context, char *topicName, int topicLen, MQTTClient_message *m
              {
                
              }
-            if (update_event_state(&event_data));
+            if (update_event_state(&event_data))
              {
                 printf("Entity ID: %s\n", event_data.entity_id);
                 printf("State Class: %s\n", event_data.state_class);
                 printf("Device Class: %s\n", event_data.device_class);
                 printf("State: %s\n", event_data.state);
                 printf("Last Updated: %s\n", event_data.last_updated);
-    
+                send_json_ha_config_mqtt(client,event_data.entity_id,"homeassistant/sensor/anomaly/config");
              }
-
-
-
 
 
         } else {
             //printf("Failed to parse JSON\n");
         }
     }
-    MQTTClient_freeMessage(&message);
-    MQTTClient_free(topicName);
+    MQTTAsync_freeMessage(&message);
+    MQTTAsync_free(topicName);
     return 1;
 }
 
 
-void connlost(void *context, char *cause) {
-    printf("\nConnection lost\n");
-    printf("     cause: %s\n", cause);
-    MQTTClient *client = (MQTTClient *)context;
+void onConnectionLost(void* context, char* cause) {
+    printf("Connection lost, cause: %s\n", cause);
+    MQTTAsync client = (MQTTAsync)context;
+    MQTTAsync_connectOptions conn_opts = MQTTAsync_connectOptions_initializer;
+    conn_opts.keepAliveInterval = 20;
+    conn_opts.cleansession = 1;
+    conn_opts.onSuccess = onConnect;
+    conn_opts.onFailure = onConnectFailure;
+    conn_opts.context = client;
+
     int rc;
-
-    while ((rc = MQTTClient_connect(*client, NULL)) != MQTTCLIENT_SUCCESS) {
+    while ((rc = MQTTAsync_connect(client, &conn_opts)) != MQTTASYNC_SUCCESS) {
         printf("Failed to reconnect, return code %d\n", rc);
-        sleep(1);
+        usleep(1000000L); // Sleep for 1 second before retrying
     }
-    printf("Reconnected successfully\n");
 }
 
-void connlost_2(void *context, char *cause) {
-    printf("\nConnection lost\n");
-    printf("     cause: %s\n", cause);
+void onSubscribe(void* context, MQTTAsync_successData* response) {
+    printf("Subscribed successfully\n");
 }
+
+void onSubscribeFailure(void* context, MQTTAsync_failureData* response) {
+    printf("Subscribe failed, rc %d\n", response ? response->code : 0);
+}
+
+
+
+
+void send_json_ha_config_mqtt(MQTTAsync client, const char *unique, const char *topic) {
+    // Replace "sensor" with "anomaly" in the unique string
+    char modified_unique[256];
+
+    snprintf(modified_unique, 255, "anom_%s", unique+7);
+    // Create JSON object
+    cJSON *json = cJSON_CreateObject();
+    cJSON_AddStringToObject(json, "~", "homeassistant/sensor/anomaly");
+    cJSON_AddStringToObject(json, "name", modified_unique);
+    cJSON_AddStringToObject(json, "cmd_t", "~/set");
+    cJSON_AddStringToObject(json, "stat_t", "~/state");
+
+    // Convert JSON object to string
+    char *json_string = cJSON_PrintUnformatted(json);
+
+#if 1
+    // Create MQTT message
+    MQTTAsync_message pubmsg = MQTTAsync_message_initializer;
+    pubmsg.payload = json_string;
+    pubmsg.payloadlen = (int)strlen(json_string);
+    pubmsg.qos = QOS;
+    pubmsg.retained = 0;
+
+    // Publish the message asynchronously
+    MQTTAsync_responseOptions opts = MQTTAsync_responseOptions_initializer;
+    opts.onSuccess = onDeliveryComplete;
+    opts.context = client;
+
+    int rc = MQTTAsync_sendMessage(client, topic, &pubmsg, &opts);
+    if (rc != MQTTASYNC_SUCCESS) {
+        printf("Failed to publish message, return code %d\n", rc);
+    } else {
+    //    delivery_in_progress = 1;
+        printf("Message '%s' sent to topic '%s'\n", json_string, topic);
+    }
+#endif
+
+    // Clean up
+    cJSON_Delete(json);
+    free(json_string);
+}
+
+
+
+
+
+
+
+#if 0
+void send_json_ha_config_mqtt(MQTTAsync client, const char *unique, const char *topic) {
+
+    // Replace "sensor" with "anomaly" in the unique string
+    char modified_unique[256];
+
+     snprintf(modified_unique, 300, "anom_%s", unique+7);
+
+    // Create JSON object
+    cJSON *json = cJSON_CreateObject();
+    cJSON_AddStringToObject(json, "~", "homeassistant/sensor/anomaly");
+    cJSON_AddStringToObject(json, "name", modified_unique);
+    cJSON_AddStringToObject(json, "cmd_t", "~/set");
+    cJSON_AddStringToObject(json, "stat_t", "~/state");
+
+    // Convert JSON object to string
+    char *json_string = cJSON_PrintUnformatted(json);
+
+    // Create MQTT message
+    MQTTClient_message pubmsg = MQTTClient_message_initializer;
+    pubmsg.payload = json_string;
+    pubmsg.payloadlen = (int)strlen(json_string);
+    pubmsg.qos = QOS;
+    pubmsg.retained = 0;
+
+    // Publish the message asynchronously
+    MQTTClient_deliveryToken token;
+    MQTTClient_publishMessage(client, topic, &pubmsg, &token);
+
+    printf("Message '%s' sent to topic '%s'\n", json_string, topic);
+
+    // Clean up
+    cJSON_Delete(json);
+    free(json_string);
+}
+#endif
 
 int main(int argc, char* argv[]) {
     char *address = NULL;
@@ -107,27 +210,29 @@ int main(int argc, char* argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    MQTTClient client;
-    MQTTClient_connectOptions conn_opts = MQTTClient_connectOptions_initializer;
+
+    MQTTAsync_connectOptions conn_opts = MQTTAsync_connectOptions_initializer;
     int rc;
 
-    char full_address[256];
-    snprintf(full_address, sizeof(full_address), "tcp://%s:1883", address);
+    MQTTAsync_create(&client, address, CLIENTID, MQTTCLIENT_PERSISTENCE_NONE, NULL);
+    MQTTAsync_setCallbacks(client, client, onConnectionLost, messageArrived, onDeliveryComplete);
 
-    MQTTClient_create(&client, full_address, CLIENTID, MQTTCLIENT_PERSISTENCE_NONE, NULL);
+
     conn_opts.keepAliveInterval = 20;
     conn_opts.cleansession = 1;
+    conn_opts.onSuccess = onConnect;
+    conn_opts.onFailure = onConnectFailure;
+    conn_opts.context = client;
     conn_opts.username = username;
     conn_opts.password = password;
 
-    MQTTClient_setCallbacks(client, NULL, connlost, msgarrvd, delivered);
-
-    if ((rc = MQTTClient_connect(client, &conn_opts)) != MQTTCLIENT_SUCCESS) {
-        printf("Failed to connect, return code %d\n", rc);
-        exit(EXIT_FAILURE);
+    if ((rc = MQTTAsync_connect(client, &conn_opts)) != MQTTASYNC_SUCCESS) {
+        printf("Failed to start connect, return code %d\n", rc);
+        return EXIT_FAILURE;
     }
-    printf("Subscribing to topic %s\nfor client %s using QoS%d\n\n", TOPIC, CLIENTID, QOS);
-    MQTTClient_subscribe(client, TOPIC, QOS);
+    
+
+
 
     // Keep the program running to receive messages
     while (1) {
@@ -135,8 +240,9 @@ int main(int argc, char* argv[]) {
         sleep(1);
     }
 
-    MQTTClient_disconnect(client, 10000);
-    MQTTClient_destroy(&client);
+    MQTTAsync_disconnectOptions disc_opts = MQTTAsync_disconnectOptions_initializer;
+    MQTTAsync_disconnect(client, &disc_opts);
+    MQTTAsync_destroy(&client);
     return rc;
 }
 

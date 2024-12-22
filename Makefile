@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -I/usr/include -I/usr/include/cjson
-LDFLAGS = -L/usr/lib -lpaho-mqtt3c -lcjson
+LDFLAGS = -L/usr/lib -lpaho-mqtt3a -lcjson
 
 TARGET = mqtt_subscriber
 SRC = mqtt_subscriber.c utils.c
