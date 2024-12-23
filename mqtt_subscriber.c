@@ -13,6 +13,7 @@
 #define TIMEOUT     1000L
 
 
+volatile CONNECTED;
 MQTTAsync client;
 
 
@@ -26,6 +27,7 @@ void onConnectFailure(void* context, MQTTAsync_failureData* response) {
 }
 
 void onConnect(void* context, MQTTAsync_successData* response) {
+    CONNECTED=1;
     printf("Connected successfully\n");
     MQTTAsync client = (MQTTAsync)context;
     MQTTAsync_subscribe(client, "eventstream", QOS, NULL);
@@ -55,7 +57,7 @@ int messageArrived(void* context, char* topicName, int topicLen, MQTTAsync_messa
                 printf("Device Class: %s\n", event_data.device_class);
                 printf("State: %s\n", event_data.state);
                 printf("Last Updated: %s\n", event_data.last_updated);
-                send_json_ha_config_mqtt(client,event_data.entity_id,"homeassistant/sensor/anomaly/config");
+                //send_json_ha_config_mqtt(client,event_data.entity_id,"homeassistant/sensor/anomaly/config");
              }
 
 
@@ -79,11 +81,7 @@ void onConnectionLost(void* context, char* cause) {
     conn_opts.onFailure = onConnectFailure;
     conn_opts.context = client;
 
-    int rc;
-    while ((rc = MQTTAsync_connect(client, &conn_opts)) != MQTTASYNC_SUCCESS) {
-        printf("Failed to reconnect, return code %d\n", rc);
-        usleep(1000000L); // Sleep for 1 second before retrying
-    }
+    CONNECTED=0;
 }
 
 void onSubscribe(void* context, MQTTAsync_successData* response) {
@@ -95,34 +93,106 @@ void onSubscribeFailure(void* context, MQTTAsync_failureData* response) {
 }
 
 
+void send_json_ha_state_mqtt( const char *unique, int value) {
+   send_json_ha_state_mqtt_internal(client,unique,value);
+}
 
-
-void send_json_ha_config_mqtt(MQTTAsync client, const char *unique, const char *topic) {
-    // Replace "sensor" with "anomaly" in the unique string
+void send_json_ha_state_mqtt_internal(MQTTAsync client, const char *unique, int value) {
+    // Remove "sensor." from the unique string
     char modified_unique[256];
+    char value_char[256];
 
-    snprintf(modified_unique, 255, "anom_%s", unique+7);
+    snprintf(modified_unique, sizeof(modified_unique), "anoma_%s", unique+7);
+
+    // Construct the topic
+    char topic[300];
+    snprintf(topic, sizeof(topic), "homeassistant/sensor/%s/state", modified_unique);
+
     // Create JSON object
     cJSON *json = cJSON_CreateObject();
-    cJSON_AddStringToObject(json, "~", "homeassistant/sensor/anomaly");
-    cJSON_AddStringToObject(json, "name", modified_unique);
-    cJSON_AddStringToObject(json, "cmd_t", "~/set");
-    cJSON_AddStringToObject(json, "stat_t", "~/state");
+    sprintf(value_char,"%d",value);
+    cJSON_AddStringToObject(json, "state", value_char);
 
     // Convert JSON object to string
     char *json_string = cJSON_PrintUnformatted(json);
 
-#if 1
+    // Create MQTT message
+    MQTTAsync_message pubmsg = MQTTAsync_message_initializer;
+    pubmsg.payload = value_char;
+    pubmsg.payloadlen = strlen(value_char);
+    pubmsg.qos = 1;
+    pubmsg.retained = 0;
+
+    // Publish the message asynchronously
+    MQTTAsync_responseOptions opts = MQTTAsync_responseOptions_initializer;
+    int rc = MQTTAsync_sendMessage(client, topic, &pubmsg, &opts);
+    if (rc != MQTTASYNC_SUCCESS) {
+        printf("Failed to publish message, return code %d\n", rc);
+    } else {
+        printf("Message '%s' sent to topic '%s'\n", value_char, topic);
+    }
+
+    // Clean up
+    cJSON_Delete(json);
+    free(json_string);
+}
+
+
+void send_json_ha_config_mqtt(const char *unique) {
+     send_json_ha_config_mqtt_internal(client,unique);
+}
+
+void send_json_ha_config_mqtt_internal(MQTTAsync client, const char *unique) {
+    // Replace "sensor" with "anomaly" in the unique string
+    char modified_unique[256];
+    char tag[256];
+    char topic[256];
+    char state[256];
+
+    snprintf(tag, 255, "homeassistant/sensor/anoma_%s", unique+7); 
+    snprintf(modified_unique, 255, "anoma_%s", unique+7);
+    snprintf(topic, 255, "homeassistant/sensor/anoma_%s/config", unique+7);
+    snprintf(state, 255, "homeassistant/sensor/anoma_%s/state", unique+7);
+
+    // Create JSON object
+    cJSON *json = cJSON_CreateObject();
+
+#if 0
+    cJSON_AddStringToObject(json, "~", tag);
+    cJSON_AddStringToObject(json, "name", modified_unique);
+    cJSON_AddStringToObject(json, "cmd_t", "~/set");
+    cJSON_AddStringToObject(json, "stat_t", "~/state");
+    cJSON_AddStringToObject(json, "schema", "json");
+#endif
+
+    cJSON_AddStringToObject(json, "name",modified_unique);
+    //cJSON_AddStringToObject(json, "command_topic", "homeassistant/switch/irrigation/set");
+    cJSON_AddStringToObject(json, "state_topic",state);
+    cJSON_AddStringToObject(json, "unique_id",modified_unique);
+    cJSON_AddStringToObject(json, "unit_of_measurement","%");
+
+    cJSON *device = cJSON_CreateObject();
+    cJSON_AddItemToObject(json, "device", device);
+
+    cJSON *identifiers = cJSON_CreateArray();
+    cJSON_AddItemToArray(identifiers, cJSON_CreateString(modified_unique));
+    cJSON_AddItemToObject(device, "identifiers", identifiers);
+    cJSON_AddStringToObject(device, "name",modified_unique);
+
+
+    // Convert JSON object to string
+    char *json_string = cJSON_PrintUnformatted(json);
+
     // Create MQTT message
     MQTTAsync_message pubmsg = MQTTAsync_message_initializer;
     pubmsg.payload = json_string;
     pubmsg.payloadlen = (int)strlen(json_string);
     pubmsg.qos = QOS;
-    pubmsg.retained = 0;
+    pubmsg.retained = 1;
 
     // Publish the message asynchronously
     MQTTAsync_responseOptions opts = MQTTAsync_responseOptions_initializer;
-    opts.onSuccess = onDeliveryComplete;
+    //opts.onSuccess = onDeliveryComplete;
     opts.context = client;
 
     int rc = MQTTAsync_sendMessage(client, topic, &pubmsg, &opts);
@@ -132,7 +202,6 @@ void send_json_ha_config_mqtt(MQTTAsync client, const char *unique, const char *
     //    delivery_in_progress = 1;
         printf("Message '%s' sent to topic '%s'\n", json_string, topic);
     }
-#endif
 
     // Clean up
     cJSON_Delete(json);
@@ -143,44 +212,6 @@ void send_json_ha_config_mqtt(MQTTAsync client, const char *unique, const char *
 
 
 
-
-
-#if 0
-void send_json_ha_config_mqtt(MQTTAsync client, const char *unique, const char *topic) {
-
-    // Replace "sensor" with "anomaly" in the unique string
-    char modified_unique[256];
-
-     snprintf(modified_unique, 300, "anom_%s", unique+7);
-
-    // Create JSON object
-    cJSON *json = cJSON_CreateObject();
-    cJSON_AddStringToObject(json, "~", "homeassistant/sensor/anomaly");
-    cJSON_AddStringToObject(json, "name", modified_unique);
-    cJSON_AddStringToObject(json, "cmd_t", "~/set");
-    cJSON_AddStringToObject(json, "stat_t", "~/state");
-
-    // Convert JSON object to string
-    char *json_string = cJSON_PrintUnformatted(json);
-
-    // Create MQTT message
-    MQTTClient_message pubmsg = MQTTClient_message_initializer;
-    pubmsg.payload = json_string;
-    pubmsg.payloadlen = (int)strlen(json_string);
-    pubmsg.qos = QOS;
-    pubmsg.retained = 0;
-
-    // Publish the message asynchronously
-    MQTTClient_deliveryToken token;
-    MQTTClient_publishMessage(client, topic, &pubmsg, &token);
-
-    printf("Message '%s' sent to topic '%s'\n", json_string, topic);
-
-    // Clean up
-    cJSON_Delete(json);
-    free(json_string);
-}
-#endif
 
 int main(int argc, char* argv[]) {
     char *address = NULL;
@@ -226,18 +257,18 @@ int main(int argc, char* argv[]) {
     conn_opts.username = username;
     conn_opts.password = password;
 
-    if ((rc = MQTTAsync_connect(client, &conn_opts)) != MQTTASYNC_SUCCESS) {
-        printf("Failed to start connect, return code %d\n", rc);
-        return EXIT_FAILURE;
-    }
-    
-
-
-
     // Keep the program running to receive messages
     while (1) {
-        // Add a sleep to reduce CPU usage
-        sleep(1);
+
+    if (CONNECTED == 0)
+     { 
+     if ((rc = MQTTAsync_connect(client, &conn_opts)) != MQTTASYNC_SUCCESS) {
+        printf("Failed to start connect, return code %d\n", rc);
+       
+       }
+     }
+
+        sleep(10);
     }
 
     MQTTAsync_disconnectOptions disc_opts = MQTTAsync_disconnectOptions_initializer;

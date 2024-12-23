@@ -206,6 +206,9 @@ int add_unique_event_internal(char *entity_id, ll_t *list_head) {
     new_event->pvt = malloc(sizeof(EventCatagory));
     new_event->init=-1;
 
+    send_json_ha_config_mqtt(entity_id);
+    send_json_ha_state_mqtt(entity_id,0);
+
     strcpy(new_event->pvt->entity_id, entity_id);
     // Initialize other fields as needed
     new_event->pvt->delta_trigger = 100;  // Example initialization
@@ -241,12 +244,13 @@ int calculateDifference(int a, int b) {
 }
 
 int percentage_difference_baseline(int baseline, int value) {
+    int bl = baseline;
     if (baseline == 0) {
-        return 0; // Avoid division by zero
+        return 0;
     }
     
-    int difference = value - baseline;
-    return (difference * 100) / baseline;
+    int difference = value - bl;
+    return (difference * 100) / bl;
 }
 
 int update_event_state_internal(EventData *event_data, ll_t *list_head) {
@@ -315,6 +319,7 @@ int update_event_state_internal(EventData *event_data, ll_t *list_head) {
                   current_event->pvt->counter[get_hour(&current_tm)]++;
                   int pct =  percentage_difference_baseline(current_event->ref->counter[get_hour(&current_tm)], 
                                                   current_event->pvt->counter[get_hour(&current_tm)]);
+                  send_json_ha_state_mqtt(current_event->pvt->entity_id,pct);
  
                   print_event_category( current_event->pvt);
                   
