@@ -102,7 +102,7 @@ void send_json_ha_state_mqtt_internal(MQTTAsync client, const char *unique, int 
     char modified_unique[256];
     char value_char[256];
 
-    snprintf(modified_unique, sizeof(modified_unique), "anoma_%s", unique+7);
+    snprintf(modified_unique, sizeof(modified_unique), "anomaly_%s", unique+7);
 
     // Construct the topic
     char topic[300];
@@ -149,10 +149,10 @@ void send_json_ha_config_mqtt_internal(MQTTAsync client, const char *unique) {
     char topic[256];
     char state[256];
 
-    snprintf(tag, 255, "homeassistant/sensor/anoma_%s", unique+7); 
+    snprintf(tag, 255, "homeassistant/sensor/anomaly_%s", unique+7); 
     snprintf(modified_unique, 255, "anoma_%s", unique+7);
-    snprintf(topic, 255, "homeassistant/sensor/anoma_%s/config", unique+7);
-    snprintf(state, 255, "homeassistant/sensor/anoma_%s/state", unique+7);
+    snprintf(topic, 255, "homeassistant/sensor/anomaly_%s/config", unique+7);
+    snprintf(state, 255, "homeassistant/sensor/anomaly_%s/state", unique+7);
 
     // Create JSON object
     cJSON *json = cJSON_CreateObject();
