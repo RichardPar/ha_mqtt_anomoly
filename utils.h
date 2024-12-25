@@ -7,6 +7,7 @@ typedef struct {
     char device_class[256];
     char state[256];
     char last_updated[256];
+    char unit_of_measurement[20];
 } EventData;
 
 typedef struct {

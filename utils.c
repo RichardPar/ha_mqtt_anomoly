@@ -120,6 +120,11 @@ int parse_json(const char *json_str, EventData *event_data) {
             if (cJSON_IsString(device_class) && (device_class->valuestring != NULL)) {
                 strncpy(event_data->device_class, device_class->valuestring, sizeof(event_data->device_class) - 1);
             }
+            cJSON *device_measurement = cJSON_GetObjectItemCaseSensitive(attributes, "unit_of_measurement");
+            if (cJSON_IsString(device_measurement) && (device_measurement->valuestring != NULL)) {
+                strncpy(event_data->unit_of_measurement, device_measurement->valuestring, sizeof(event_data->unit_of_measurement) - 1);
+            }
+
         }
 
         // Get the last_updated
@@ -224,8 +229,6 @@ int add_unique_event_internal(char *entity_id, ll_t *list_head) {
 
     new_event->pvt->last_state = 0;
     
-
-
     list_add(&new_event->node, list_head);
     return 1;
 }
@@ -308,7 +311,15 @@ int update_event_state_internal(EventData *event_data, ll_t *list_head) {
                }
             }
 
-            state = atoi(event_data->state);
+            if (event_data->unit_of_measurement[0] == 'k')
+              {
+                 float rc = atof(event_data->state);
+                 rc = rc * 1000;                   
+                 state = rc;
+              } else
+              {
+                 state = atoi(event_data->state);
+              }
             if (current_event->pvt->last_state == 0)   // Last state didnt have a reading... just set to current
                          current_event->pvt->last_state = state;
 

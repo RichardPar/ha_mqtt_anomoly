@@ -56,6 +56,7 @@ int messageArrived(void* context, char* topicName, int topicLen, MQTTAsync_messa
                 printf("State Class: %s\n", event_data.state_class);
                 printf("Device Class: %s\n", event_data.device_class);
                 printf("State: %s\n", event_data.state);
+                printf("Measurement Unit: %s\n", event_data.unit_of_measurement);
                 printf("Last Updated: %s\n", event_data.last_updated);
                 //send_json_ha_config_mqtt(client,event_data.entity_id,"homeassistant/sensor/anomaly/config");
              }
@@ -150,7 +151,7 @@ void send_json_ha_config_mqtt_internal(MQTTAsync client, const char *unique) {
     char state[256];
 
     snprintf(tag, 255, "homeassistant/sensor/anomaly_%s", unique+7); 
-    snprintf(modified_unique, 255, "anoma_%s", unique+7);
+    snprintf(modified_unique, 255, "anomaly_%s", unique+7);
     snprintf(topic, 255, "homeassistant/sensor/anomaly_%s/config", unique+7);
     snprintf(state, 255, "homeassistant/sensor/anomaly_%s/state", unique+7);
 
